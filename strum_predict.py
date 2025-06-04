@@ -11,10 +11,17 @@ import numpy as np
 
 # ========== Model Setup ==========
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MODEL_PATH = "checkpoints/finger_mobilenetv2.pt"
+MODEL_PATH = "checkpoints/finger_mobilenet_v2_with_aug.pt"
 
-model = models.mobilenet_v2(weights=None)
-model.classifier[1] = nn.Linear(model.last_channel, 5)
+if "resnet18" in MODEL_PATH:
+    model = models.resnet18(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 5)
+elif "efficientnet_b0" in MODEL_PATH:
+    model = models.efficientnet_b0(weights=None)
+    model.classifier[1] = nn.Linear(model.classifier[1].in_features, 5)
+else:
+    model = models.mobilenet_v2(weights=None)
+    model.classifier[1] = nn.Linear(model.last_channel, 5)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
 model.eval().to(DEVICE)
 
@@ -86,6 +93,10 @@ while True:
 
                             prediction_text = f"{pred} fingers"
                             print("🎸 Strum detected! Prediction:", prediction_text)
+                            timestamp = int(time.time() * 1000)
+                            save_path = f"strum_captures/strum_{timestamp}.jpg"
+                            cv2.imwrite(save_path, crop)
+                            print(f"🖼️  Saved strum crop to {save_path}")
 
                 prev_y = wrist_y
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)

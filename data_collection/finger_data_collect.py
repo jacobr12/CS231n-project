@@ -3,7 +3,7 @@ import mediapipe as mp
 import os
 
 label = input("Enter finger count (1–5): ")
-save_dir = f"./data/{label}"
+save_dir = f"./data_diff/{label}"
 os.makedirs(save_dir, exist_ok=True)
 
 mp_hands = mp.solutions.hands
