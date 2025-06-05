@@ -8,7 +8,7 @@ mp_hands = mp.solutions.hands
 hand_detector = mp_hands.Hands(model_complexity=1, max_num_hands=2, min_detection_confidence=0.7)
 
 # Output folders
-output_dir = 'left_hand_images'
+output_dir = 'left_hand_images/test'
 os.makedirs(os.path.join(output_dir, 'open'), exist_ok=True)
 os.makedirs(os.path.join(output_dir, 'closed'), exist_ok=True)
 

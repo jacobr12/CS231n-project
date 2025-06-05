@@ -8,6 +8,9 @@ import torchvision.transforms as transforms
 from torchvision import models
 from PIL import Image
 import numpy as np
+import os
+
+os.makedirs("strum_captures", exist_ok=True)
 
 # ========== Model Setup ==========
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -66,39 +69,40 @@ while True:
         for hand_landmarks, hand_handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
             label = hand_handedness.classification[0].label
             if label == "Right":
+                h, w, _ = frame.shape
+                xs = [pt.x * w for pt in hand_landmarks.landmark]
+                ys = [pt.y * h for pt in hand_landmarks.landmark]
+                x1, y1 = int(min(xs)) - 20, int(min(ys)) - 20
+                x2, y2 = int(max(xs)) + 20, int(max(ys)) + 20
+                crop = frame[y1:y2, x1:x2]
+
+                # ===== Predict finger count every frame =====
+                if crop.size > 0:
+                    img_pil = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
+                    img_tensor = transform(img_pil).unsqueeze(0).to(DEVICE)
+
+                    with torch.no_grad():
+                        output = model(img_tensor)
+                        pred = torch.argmax(output, dim=1).item() + 1
+
+                    prediction_text = f"{pred} fingers"
+
+                # ===== Detect strum and play sound =====
                 wrist_y = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y
                 now = time.time()
-
                 if prev_y is not None:
                     dy = wrist_y - prev_y
                     if dy > 0.08 and (now - last_strum_time > cooldown):
                         last_strum_time = now
                         sound.play()
-
-                        # ========== Crop hand and predict ==========
-                        h, w, _ = frame.shape
-                        xs = [pt.x * w for pt in hand_landmarks.landmark]
-                        ys = [pt.y * h for pt in hand_landmarks.landmark]
-                        x1, y1 = int(min(xs)) - 20, int(min(ys)) - 20
-                        x2, y2 = int(max(xs)) + 20, int(max(ys)) + 20
-                        crop = frame[y1:y2, x1:x2]
-
-                        if crop.size > 0:
-                            img_pil = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
-                            img_tensor = transform(img_pil).unsqueeze(0).to(DEVICE)
-
-                            with torch.no_grad():
-                                output = model(img_tensor)
-                                pred = torch.argmax(output, dim=1).item() + 1  # labels are 1–5
-
-                            prediction_text = f"{pred} fingers"
-                            print("🎸 Strum detected! Prediction:", prediction_text)
-                            timestamp = int(time.time() * 1000)
-                            save_path = f"strum_captures/strum_{timestamp}.jpg"
-                            cv2.imwrite(save_path, crop)
-                            print(f"🖼️  Saved strum crop to {save_path}")
-
+                        print("🎸 Strum detected! Prediction:", prediction_text)
+                        timestamp = int(time.time() * 1000)
+                        save_path = f"strum_captures/strum_{timestamp}.jpg"
+                        cv2.imwrite(save_path, crop)
+                        print(f"🖼️  Saved strum crop to {save_path}")
                 prev_y = wrist_y
+
+                # Draw hand landmarks
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
     # Display live frame with prediction
